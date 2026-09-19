@@ -89,7 +89,7 @@ def generate_drafts() -> str:
         raise RuntimeError("CLAUDE_API_KEY が未設定のため記事案を生成できません。")
 
     prompt = PROMPT_TEMPLATE.format(ideas_text=ideas_text, period_report=period_report)
-    drafts_md = claude_client.generate(prompt, max_tokens=3000, temperature=0.6)
+    drafts_md = claude_client.generate(prompt, max_tokens=3000)
 
     for idea_id in idea_ids:
         db.mark_idea_used(idea_id)

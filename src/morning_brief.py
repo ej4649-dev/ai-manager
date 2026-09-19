@@ -122,7 +122,7 @@ def generate_morning_brief() -> str:
             "CLAUDE_API_KEY が未設定のため朝の指示書を生成できません。.env を設定してください。"
         )
     prompt = PROMPT_TEMPLATE.format(**ctx)
-    brief = claude_client.generate(prompt, max_tokens=1500, temperature=0.5)
+    brief = claude_client.generate(prompt, max_tokens=1500)
     return brief
 
 

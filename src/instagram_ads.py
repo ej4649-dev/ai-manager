@@ -31,12 +31,25 @@ def _business_for_ad(ad_name: str) -> str:
     return settings.businesses[0] if settings.businesses else "unknown"
 
 
-def ingest_yesterday() -> list[dict]:
-    if not settings.meta_ad_account_id:
-        logger.warning("META_AD_ACCOUNT_ID 未設定のため Instagram 広告取得をスキップ")
-        return []
+def ingest_yesterday() -> tuple[list[dict], str | None]:
+    """前日の広告実績を取得。戻り値は (取得できた行, エラーメッセージ or None)。
 
-    rows = meta_client.fetch_ad_insights(settings.meta_ad_account_id, date_preset="yesterday")
+    エラー時も空リストで返して呼び出し側を止めないが、"0件=広告が回っていない"
+    のか "0件=取得失敗" なのかをレポート上で区別できるようエラー文言も返す。
+    """
+    if not settings.meta_ad_account_id:
+        msg = "INSTAGRAM_AD_ACCOUNT_ID 未設定のため Instagram 広告取得をスキップ"
+        logger.warning(msg)
+        return [], msg
+
+    try:
+        rows = meta_client.fetch_ad_insights(settings.meta_ad_account_id, date_preset="yesterday")
+    except meta_client.MetaAPIError as e:
+        # ads_read 権限未許可・トークン失効など。DB蓄積分だけで動くよう空扱いにして続行する
+        # (仕様書4章「1つのAPI連携不調で全体を止めない」への対応)。
+        logger.error("Instagram 広告データ取得失敗: %s", e)
+        return [], str(e)
+
     saved = []
     for row in rows:
         impressions = int(row.get("impressions", 0) or 0)
@@ -64,7 +77,7 @@ def ingest_yesterday() -> list[dict]:
         }
         db.upsert_ig_metric(record)
         saved.append(record)
-    return saved
+    return saved, None
 
 
 def _aggregate(rows) -> dict:
@@ -126,7 +139,7 @@ CPA変動率: {cpa_change}%
 
 
 def run() -> str:
-    rows = ingest_yesterday()
+    rows, fetch_error = ingest_yesterday()
     today_agg = _aggregate(rows)
     last_week_agg, cpa_change = _week_ago_comparison(today_agg)
     analysis = _build_analysis(today_agg, last_week_agg, cpa_change, rows)
@@ -136,8 +149,11 @@ def run() -> str:
     ctr_str = f"{today_agg['ctr']}%"
     change_str = f"{cpa_change:+.1f}%" if cpa_change is not None else "N/A（先週データ不足）"
 
-    report = f"""【Instagram 広告日次分析】{yesterday}
+    # 取得失敗時は "0件=広告が回っていない" と誤読されないよう明示する
+    error_note = f"\n⚠️ データ取得エラー: {fetch_error}\n（以下の数値は取得できた分のみ。取得失敗の場合は0扱いなので注意）\n" if fetch_error else ""
 
+    report = f"""【Instagram 広告日次分析】{yesterday}
+{error_note}
 【本日の成績】
 - インプレッション: {today_agg['impressions']:,}
 - クリック: {today_agg['clicks']:,}（CTR: {ctr_str}）

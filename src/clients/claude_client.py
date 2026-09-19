@@ -36,14 +36,20 @@ def generate(
     prompt: str,
     system: str | None = None,
     max_tokens: int = 2000,
-    temperature: float = 0.4,
 ) -> str:
-    """単発プロンプト → テキスト応答。全機能の共通エントリーポイント。"""
+    """単発プロンプト → テキスト応答。全機能の共通エントリーポイント。
+
+    注: 以前は temperature 引数でサンプリングのランダム性を調整していたが、
+    現行の Messages API (anthropic SDK >= 1.7) では temperature パラメータが
+    廃止されている（実機で確認済み: TypeError: unexpected keyword 'temperature'）。
+    代替として output_config.effort（low/medium/high/xhigh/max）があるが、これは
+    応答のランダム性ではなく推論の深さ/コストを制御するもので意味が異なるため、
+    安易に温度の代替として使わず、必要になったら明示的に追加すること。
+    """
     client = _get_client()
     kwargs = dict(
         model=settings.claude_model,
         max_tokens=max_tokens,
-        temperature=temperature,
         messages=[{"role": "user", "content": prompt}],
     )
     if system:

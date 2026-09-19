@@ -104,11 +104,17 @@ def fetch_page_insights(page_id: str, metrics: tuple[str, ...] = (
 
 # --- Instagram 広告 (Meta Ads Manager via ad account insights) ------------
 
+def _normalize_ad_account_id(ad_account_id: str) -> str:
+    """Graph API の広告アカウントエンドポイントは 'act_<数字>' 形式を要求する。
+    .env には数字IDだけが入っていることが多いので、無ければ自動で付与する。"""
+    return ad_account_id if ad_account_id.startswith("act_") else f"act_{ad_account_id}"
+
+
 def fetch_ad_insights(ad_account_id: str, date_preset: str = "yesterday") -> list[dict[str, Any]]:
     """広告アカウント単位の日次インサイト (impressions/clicks/spend/actions)。"""
     fields = "ad_id,ad_name,impressions,clicks,spend,cpc,ctr,actions,date_start,date_stop"
     data = _get(
-        f"{ad_account_id}/insights",
+        f"{_normalize_ad_account_id(ad_account_id)}/insights",
         {
             "level": "ad",
             "fields": fields,
