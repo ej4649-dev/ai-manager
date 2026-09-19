@@ -60,16 +60,38 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-### 2. `.env` を作成
+### 2. `.env` を設定
 
-```powershell
-Copy-Item .env.example .env
-notepad .env
+`.env` は作成済みです（`.env.example` から生成、git 管理外）。中身はプレースホルダーで、
+以下の6項目が `（後で提供します）` のままになっています。**キーを取得したら、
+以下の行を実際の値で置き換えてください**（`notepad .env` で開いて編集）：
+
+```
+CLAUDE_API_KEY=（後で提供します）              ← Anthropic のAPIキーに置き換え
+GEMINI_API_KEY=（後で提供します）              ← Google AI StudioのAPIキーに置き換え
+META_ACCESS_TOKEN=（後で提供します）           ← Meta Graph APIの長期ページアクセストークンに置き換え
+FACEBOOK_PAGE_ID=（後で提供します）            ← The Vintage Salon Mobile ページIDに置き換え
+FACEBOOK_GROUP_ID=（後で提供します）           ← ビンテージモーターホームファンクラブ グループIDに置き換え
+INSTAGRAM_AD_ACCOUNT_ID=（後で提供します）     ← Meta 広告アカウントIDに置き換え
 ```
 
-必要なキーの取得先は `.env.example` のコメントに記載済み。最低限、
-`ANTHROPIC_API_KEY` だけ設定すれば `morning_brief`（カレンダー無し版）や
+置き換え方法: `（後で提供します）` の部分を削除し、キー/IDの値だけを残す。例:
+```
+CLAUDE_API_KEY=sk-ant-api03-xxxxxxxxxxxxxxxx
+```
+
+> **仕組みの補足**: `（後で提供します）` のようなプレースホルダー文言が値に入っている間は、
+> `config/settings.py` がそれを自動的に「未設定」として扱うので、実際のAPIを
+> 誤って呼び出してエラーになることはありません。値を実際のキーに書き換えた時点で
+> 有効になります（アプリの再起動は必要ですが、コード変更は不要です）。
+
+各キーの取得先（詳細）は `.env.example` のコメントにも記載しています。
+最低限、`CLAUDE_API_KEY` だけ設定すれば `morning_brief`（カレンダー無し版）や
 `note_draft` の動作確認ができます。
+
+上記6項目以外にも、Google OAuth (Calendar/Gmail用) や Slack Webhook などの
+任意設定項目が `.env` の下部にあります。空欄のままでも該当機能がスキップされる
+だけで、アプリ全体は止まりません。
 
 ### 3. DB 初期化
 
@@ -89,8 +111,8 @@ python main.py init_db
 
 1. https://developers.facebook.com/apps/ でアプリ作成（種類: ビジネス）
 2. Graph API Explorer で対象ページの長期アクセストークンを発行
-3. `.env` に `META_PAGE_ACCESS_TOKEN` / `META_FACEBOOK_PAGE_ID` / `META_FACEBOOK_GROUP_ID` /
-   `META_AD_ACCOUNT_ID` を設定
+3. `.env` に `META_ACCESS_TOKEN` / `FACEBOOK_PAGE_ID` / `FACEBOOK_GROUP_ID` /
+   `INSTAGRAM_AD_ACCOUNT_ID` を設定（上記「2. `.env` を設定」参照）
 4. グループ監視を有効にする場合は App Review を申請（上記「既知の制約」参照）
 
 ### 6. Slack 通知（任意）
@@ -184,7 +206,7 @@ ai-manager/
 
 | 症状 | 対処 |
 |---|---|
-| `ANTHROPIC_API_KEY が未設定です` | `.env` を確認。値の前後に余計な空白/引用符が無いか確認 |
+| `CLAUDE_API_KEY が未設定です` | `.env` の `CLAUDE_API_KEY` がまだ `（後で提供します）` のままでないか確認。値の前後に余計な空白/引用符が無いかも確認 |
 | Calendar/Gmail が毎回ブラウザ認証を求める | `config/google_token.json` が保存されているか確認。無ければ書き込み権限を確認 |
 | Graph API が 403 を返す | トークンの有効期限切れ、または該当権限の審査未通過 |
 | Facebook グループ部分だけ失敗する | App Review 未通過の可能性が高い。ページ部分は動作するはず |

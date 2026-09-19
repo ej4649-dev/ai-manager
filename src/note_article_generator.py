@@ -86,7 +86,7 @@ def generate_drafts() -> str:
     period_report = _latest_period_report()
 
     if not claude_client.is_configured():
-        raise RuntimeError("ANTHROPIC_API_KEY が未設定のため記事案を生成できません。")
+        raise RuntimeError("CLAUDE_API_KEY が未設定のため記事案を生成できません。")
 
     prompt = PROMPT_TEMPLATE.format(ideas_text=ideas_text, period_report=period_report)
     drafts_md = claude_client.generate(prompt, max_tokens=3000, temperature=0.6)

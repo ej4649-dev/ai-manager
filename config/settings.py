@@ -18,9 +18,33 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT_DIR / ".env")
 
 
+# .env にまだ実キーが入っていない箇所に書く「後で提供します」等のプレースホルダー文言。
+# これが値に含まれる場合は「未設定」として扱い、Claude/Gemini/Meta へ
+# 意味の無い文字列を渡して分かりにくいエラーになるのを防ぐ。
+_PLACEHOLDER_MARKERS = ("後で提供", "TODO", "REPLACE_ME", "your_key_here")
+
+
+def _is_placeholder(val: str) -> bool:
+    return any(marker in val for marker in _PLACEHOLDER_MARKERS)
+
+
 def _get(name: str, default: str | None = None) -> str | None:
     val = os.getenv(name, default)
-    return val if val not in ("", None) else default
+    if val in ("", None):
+        return default
+    if isinstance(val, str) and _is_placeholder(val):
+        return default
+    return val
+
+
+def _get_any(names: tuple[str, ...], default: str | None = None) -> str | None:
+    """複数の候補名から最初に見つかった値を返す (Ej が指定した短縮名を優先し、
+    旧来の META_ プレフィックス付き名前もフォールバックとして受け付ける)。"""
+    for name in names:
+        val = os.getenv(name)
+        if val not in ("", None) and not _is_placeholder(val):
+            return val
+    return default
 
 
 @dataclass(frozen=True)
@@ -31,7 +55,9 @@ class Settings:
     db_path: Path = ROOT_DIR / "data" / "ai_manager.db"
 
     # Claude
-    anthropic_api_key: str | None = field(default_factory=lambda: _get("ANTHROPIC_API_KEY"))
+    anthropic_api_key: str | None = field(
+        default_factory=lambda: _get_any(("CLAUDE_API_KEY", "ANTHROPIC_API_KEY"))
+    )
     claude_model: str = field(default_factory=lambda: _get("CLAUDE_MODEL", "claude-sonnet-5"))
 
     # Gemini
@@ -49,11 +75,19 @@ class Settings:
     # Meta
     meta_app_id: str | None = field(default_factory=lambda: _get("META_APP_ID"))
     meta_app_secret: str | None = field(default_factory=lambda: _get("META_APP_SECRET"))
-    meta_page_access_token: str | None = field(default_factory=lambda: _get("META_PAGE_ACCESS_TOKEN"))
-    meta_group_id: str | None = field(default_factory=lambda: _get("META_FACEBOOK_GROUP_ID"))
-    meta_page_id: str | None = field(default_factory=lambda: _get("META_FACEBOOK_PAGE_ID"))
+    meta_page_access_token: str | None = field(
+        default_factory=lambda: _get_any(("META_ACCESS_TOKEN", "META_PAGE_ACCESS_TOKEN"))
+    )
+    meta_group_id: str | None = field(
+        default_factory=lambda: _get_any(("FACEBOOK_GROUP_ID", "META_FACEBOOK_GROUP_ID"))
+    )
+    meta_page_id: str | None = field(
+        default_factory=lambda: _get_any(("FACEBOOK_PAGE_ID", "META_FACEBOOK_PAGE_ID"))
+    )
     meta_ig_business_id: str | None = field(default_factory=lambda: _get("META_INSTAGRAM_BUSINESS_ACCOUNT_ID"))
-    meta_ad_account_id: str | None = field(default_factory=lambda: _get("META_AD_ACCOUNT_ID"))
+    meta_ad_account_id: str | None = field(
+        default_factory=lambda: _get_any(("INSTAGRAM_AD_ACCOUNT_ID", "META_AD_ACCOUNT_ID"))
+    )
 
     # Slack
     slack_webhook_url: str | None = field(default_factory=lambda: _get("SLACK_WEBHOOK_URL"))

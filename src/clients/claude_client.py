@@ -24,7 +24,7 @@ def _get_client():
     if _client is None:
         if not settings.anthropic_api_key:
             raise RuntimeError(
-                "ANTHROPIC_API_KEY が未設定です。.env に設定してください (.env.example 参照)。"
+                "CLAUDE_API_KEY が未設定です。.env に設定してください (.env.example 参照)。"
             )
         import anthropic
 

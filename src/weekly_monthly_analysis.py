@@ -49,7 +49,7 @@ def _ig_summary_for_period(start: date, end: date) -> dict:
 
 def _generate_analysis(period_label: str, fb_reports: list[str], ig_summary: dict, is_monthly: bool) -> str:
     if not claude_client.is_configured():
-        return "（ANTHROPIC_API_KEY 未設定のため AI 分析はスキップ）"
+        return "（CLAUDE_API_KEY 未設定のため AI 分析はスキップ）"
 
     fb_joined = "\n---\n".join(fb_reports[-14:]) or "(Facebook日次レポートなし)"
     scope = "月別振り返り会議" if is_monthly else "週次の戦略会議"

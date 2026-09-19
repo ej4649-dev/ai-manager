@@ -95,7 +95,7 @@ def _week_ago_comparison(today_agg: dict) -> tuple[dict, float | None]:
 
 def _build_analysis(today_agg: dict, last_week_agg: dict, cpa_change: float | None, rows: list[dict]) -> str:
     if not claude_client.is_configured():
-        return "（ANTHROPIC_API_KEY 未設定のため AI 分析はスキップ。数値のみ表示）"
+        return "（CLAUDE_API_KEY 未設定のため AI 分析はスキップ。数値のみ表示）"
 
     per_ad = "\n".join(
         f"- {r['ad_name']}（{r['business']}）: imp={r['impressions']}, clicks={r['clicks']}, "
