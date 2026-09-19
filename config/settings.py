@@ -1,0 +1,79 @@
+"""
+AI Manager - 設定ローダー
+
+.env を読み込み、全モジュールから使う設定値を一箇所に集約する。
+値が未設定の場合はそのモジュールを「スキップ」できるよう None を許容し、
+使う側 (src/*.py) が明示的にチェックしてフォールバックする設計にしている
+(仕様書 4章「既知の注意点」への対応: 1つの API が落ちても全体を止めない)。
+"""
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(ROOT_DIR / ".env")
+
+
+def _get(name: str, default: str | None = None) -> str | None:
+    val = os.getenv(name, default)
+    return val if val not in ("", None) else default
+
+
+@dataclass(frozen=True)
+class Settings:
+    root_dir: Path = ROOT_DIR
+    data_dir: Path = ROOT_DIR / "data"
+    logs_dir: Path = ROOT_DIR / "logs"
+    db_path: Path = ROOT_DIR / "data" / "ai_manager.db"
+
+    # Claude
+    anthropic_api_key: str | None = field(default_factory=lambda: _get("ANTHROPIC_API_KEY"))
+    claude_model: str = field(default_factory=lambda: _get("CLAUDE_MODEL", "claude-sonnet-5"))
+
+    # Gemini
+    gemini_api_key: str | None = field(default_factory=lambda: _get("GEMINI_API_KEY"))
+    gemini_model: str = field(default_factory=lambda: _get("GEMINI_MODEL", "gemini-2.5-flash"))
+
+    # Google OAuth
+    google_client_secret_path: Path = field(
+        default_factory=lambda: ROOT_DIR / _get("GOOGLE_OAUTH_CLIENT_SECRET_PATH", "config/google_client_secret.json")
+    )
+    google_token_path: Path = field(
+        default_factory=lambda: ROOT_DIR / _get("GOOGLE_OAUTH_TOKEN_PATH", "config/google_token.json")
+    )
+
+    # Meta
+    meta_app_id: str | None = field(default_factory=lambda: _get("META_APP_ID"))
+    meta_app_secret: str | None = field(default_factory=lambda: _get("META_APP_SECRET"))
+    meta_page_access_token: str | None = field(default_factory=lambda: _get("META_PAGE_ACCESS_TOKEN"))
+    meta_group_id: str | None = field(default_factory=lambda: _get("META_FACEBOOK_GROUP_ID"))
+    meta_page_id: str | None = field(default_factory=lambda: _get("META_FACEBOOK_PAGE_ID"))
+    meta_ig_business_id: str | None = field(default_factory=lambda: _get("META_INSTAGRAM_BUSINESS_ACCOUNT_ID"))
+    meta_ad_account_id: str | None = field(default_factory=lambda: _get("META_AD_ACCOUNT_ID"))
+
+    # Slack
+    slack_webhook_url: str | None = field(default_factory=lambda: _get("SLACK_WEBHOOK_URL"))
+
+    # NOTE (no public API - see .env.example)
+    note_email: str | None = field(default_factory=lambda: _get("NOTE_EMAIL"))
+    note_password: str | None = field(default_factory=lambda: _get("NOTE_PASSWORD"))
+
+    # Operational
+    businesses: tuple[str, ...] = field(
+        default_factory=lambda: tuple(b.strip() for b in _get("BUSINESSES", "TheVintageSalon,airstobu,GoldenMUGI").split(","))
+    )
+    morning_brief_time: str = field(default_factory=lambda: _get("MORNING_BRIEF_TIME", "06:30"))
+    log_level: str = field(default_factory=lambda: _get("LOG_LEVEL", "INFO"))
+    output_channel: str = field(default_factory=lambda: _get("OUTPUT_CHANNEL", "both"))
+
+    def ensure_dirs(self) -> None:
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        self.logs_dir.mkdir(parents=True, exist_ok=True)
+
+
+settings = Settings()
+settings.ensure_dirs()

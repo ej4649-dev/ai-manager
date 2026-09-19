@@ -1,0 +1,31 @@
+# AI Manager - Python dependencies
+# pip install -r requirements.txt
+
+python-dotenv>=1.0.1
+
+# Claude
+anthropic>=0.40.0
+
+# Gemini
+google-genai>=0.3.0
+
+# Google Calendar / Gmail
+google-auth>=2.34.0
+google-auth-oauthlib>=1.2.1
+google-auth-httplib2>=0.2.0
+google-api-python-client>=2.140.0
+
+# Meta Graph API / Slack webhook / general HTTP
+requests>=2.32.0
+
+# Dashboard
+streamlit>=1.38.0
+pandas>=2.2.0
+plotly>=5.24.0
+
+# Scheduling helper (invoked by Windows Task Scheduler, not required at runtime,
+# kept for local dev "run forever" mode)
+schedule>=1.2.2
+
+# Testing
+pytest>=8.3.0

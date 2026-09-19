@@ -1,0 +1,20 @@
+# Secrets
+.env
+config/google_client_secret.json
+config/google_token.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Data / logs (local SQLite store, generated reports)
+data/*.db
+data/*.sqlite3
+logs/*.log
+docs/note_drafts/*.md
+
+# OS
+.DS_Store
+Thumbs.db
