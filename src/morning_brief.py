@@ -160,8 +160,18 @@ def generate_morning_brief() -> str:
             "CLAUDE_API_KEY が未設定のため朝の指示書を生成できません。.env を設定してください。"
         )
     prompt = PROMPT_TEMPLATE.format(**ctx)
-    brief = claude_client.generate(prompt, max_tokens=2500)
-    return brief
+
+    # gemini_context.md を含めた新フォーマット（各タスクに所要時間/理由/方法）は
+    # 2500 トークンでも実際に打ち切られる事例が複数回発生したため、
+    # note_article_generator.py と同様に1段階だけ自動で引き上げて再試行する。
+    for max_tokens in (2500, 4500):
+        try:
+            return claude_client.generate(prompt, max_tokens=max_tokens)
+        except claude_client.TruncatedResponseError:
+            logger.warning("朝の指示書生成が max_tokens=%d で打ち切られたため再試行します", max_tokens)
+    raise claude_client.TruncatedResponseError(
+        "max_tokens=4500 でも朝の指示書の生成が完了しませんでした。プロンプトを見直してください。"
+    )
 
 
 def _extract_tasks(brief_text: str) -> list[str]:
