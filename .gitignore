@@ -3,6 +3,11 @@
 config/google_client_secret.json
 config/google_token.json
 
+# 個人情報・法人情報・自宅インフラ詳細を含むため git 管理外
+# (実名・IP・ページID/グループID・収益見込みなど。ローカル参照専用)
+docs/gemini_context.md
+docs/private/
+
 # Python
 __pycache__/
 *.pyc
@@ -13,6 +18,7 @@ venv/
 data/*.db
 data/*.sqlite3
 logs/*.log
+docs/note_drafts/
 docs/note_drafts/*.md
 
 # OS
