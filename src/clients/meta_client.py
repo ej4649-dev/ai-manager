@@ -35,18 +35,47 @@ class MetaAPIError(RuntimeError):
     pass
 
 
-def _get(path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
-    if not settings.meta_page_access_token:
+def _get(path: str, params: dict[str, Any] | None = None, access_token: str | None = None) -> dict[str, Any]:
+    token = access_token or settings.meta_page_access_token
+    if not token:
         raise MetaAPIError(
-            "META_PAGE_ACCESS_TOKEN が未設定です。.env に設定してください (.env.example 参照)。"
+            "META_ACCESS_TOKEN が未設定です。.env に設定してください (.env.example 参照)。"
         )
     params = dict(params or {})
-    params["access_token"] = settings.meta_page_access_token
+    params["access_token"] = token
     resp = requests.get(f"{GRAPH_BASE}/{path}", params=params, timeout=30)
     if resp.status_code != 200:
         logger.error("Graph API error [%s]: %s", resp.status_code, resp.text[:500])
         raise MetaAPIError(f"Graph API {path} -> {resp.status_code}: {resp.text[:300]}")
     return resp.json()
+
+
+_page_token_cache: dict[str, str] = {}
+
+
+def _get_page_access_token(page_id: str) -> str:
+    """ページ専用アクセストークンを取得する。
+
+    Page Insights など一部のエンドポイントはユーザートークンでは呼べず、
+    /me/accounts から取得できるページ固有のトークンが必要
+    (実機で確認済み: ユーザートークンで呼ぶと
+    "This method must be called with a Page Access Token" になる)。
+    /me/accounts は一度に全ページ分のトークンを返すので、プロセス内で
+    キャッシュして毎回呼び直さないようにする。
+    """
+    if page_id in _page_token_cache:
+        return _page_token_cache[page_id]
+
+    data = _get("me/accounts", {"fields": "id,name,access_token"})
+    for page in data.get("data", []):
+        _page_token_cache[page["id"]] = page["access_token"]
+
+    if page_id not in _page_token_cache:
+        raise MetaAPIError(
+            f"ページ {page_id} が /me/accounts に見つかりません"
+            "（このアカウントがページの管理者として登録されていない可能性があります）。"
+        )
+    return _page_token_cache[page_id]
 
 
 # --- Facebook グループ ----------------------------------------------------
@@ -92,9 +121,18 @@ def fetch_page_feed(page_id: str, since_hours: int = 24) -> list[dict[str, Any]]
 
 
 def fetch_page_insights(page_id: str, metrics: tuple[str, ...] = (
-    "page_impressions", "page_engaged_users", "page_views_total",
+    "page_views_total", "page_post_engagements",
 )) -> dict[str, int]:
-    data = _get(f"{page_id}/insights", {"metric": ",".join(metrics), "period": "day"})
+    """ページ インサイトを取得。
+
+    注: page_impressions / page_engaged_users / page_fans は実機確認の結果
+    "The value must be a valid insights metric" で拒否された（Meta側で
+    廃止/改称された模様）。page_views_total / page_post_engagements は
+    動作確認済み。新しいメトリクスを追加する際は事前に単体で疎通確認する
+    こと（Meta は Insights メトリクスを予告なく変更することがある）。
+    """
+    page_token = _get_page_access_token(page_id)
+    data = _get(f"{page_id}/insights", {"metric": ",".join(metrics), "period": "day"}, access_token=page_token)
     out: dict[str, int] = {}
     for item in data.get("data", []):
         values = item.get("values", [])

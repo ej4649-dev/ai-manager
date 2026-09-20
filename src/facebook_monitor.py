@@ -178,11 +178,13 @@ def run() -> str:
     if settings.meta_page_id:
         try:
             insights = _ingest_page(settings.meta_page_id)
+            # page_impressions/page_engaged_users は Meta 側で廃止済みのため
+            # meta_client.fetch_page_insights() のデフォルトを変更済み
+            # (page_views_total / page_post_engagements)
             sections.append(
                 f"\n【ページ】\n"
                 f"- ページ訪問: {insights.get('page_views_total', 'N/A')}\n"
-                f"- リーチ: {insights.get('page_impressions', 'N/A')}\n"
-                f"- エンゲージメント: {insights.get('page_engaged_users', 'N/A')}"
+                f"- 投稿エンゲージメント: {insights.get('page_post_engagements', 'N/A')}"
             )
         except meta_client.MetaAPIError as e:
             logger.error("ページ取得失敗: %s", e)
