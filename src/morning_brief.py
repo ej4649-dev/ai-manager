@@ -7,9 +7,13 @@ Scheduler から1日1回起動する想定。scheduler/setup_tasks.ps1 参照)
 フロー:
   1. Gemini 経由で Google Calendar の今日の予定・Gmail 未読メールを取得
   2. 前日夜間の Instagram 広告レポート・Facebook 日次レポートを DB から参照
-  3. Claude が優先度判定し、仕様書フォーマットに沿った指示書テキストを生成
-  4. task_history に提案タスクを記録 (完了トラッキング用)
-  5. Slack / console に出力
+  3. docs/gemini_context.md（運用哲学・判定基準・現在の運用状態）を読み込み
+  4. Claude が上記すべてを踏まえて優先度判定し、指示書テキストを生成
+     （生成エンジンは仕様書どおり Claude。gemini_context.md の内容と
+     判定基準をプロンプトに組み込むことで、Ej の「Gemini＝意思決定の
+     入口」という運用哲学を反映させている）
+  5. task_history に提案タスクを記録 (完了トラッキング用)
+  6. Slack / console に出力
 
 Calendar/Gmail の取得に失敗しても (仕様書4章1: 連携が不安定な可能性)
 処理を止めず、「取得できませんでした」という注記付きで残りの情報だけで
@@ -68,6 +72,22 @@ def _latest_fb_note() -> str:
     return "\n".join(report["content"].splitlines()[:6])
 
 
+def _load_gemini_context() -> str:
+    """docs/gemini_context.md を読み込む。
+
+    Ej の運用哲学（Gemini=意思決定の入口、判定基準、NOTE戦略、アイデア
+    ストックなど）をプロンプトに含めることで、単発のタスクリストではなく
+    その背景にある狙いを踏まえた優先度判定をさせる狙い。
+    ファイルが無くても処理は止めない。
+    """
+    path = settings.root_dir / "docs" / "gemini_context.md"
+    try:
+        return path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        logger.warning("docs/gemini_context.md が見つかりません: %s", path)
+        return "(gemini_context.md が未作成)"
+
+
 def build_context() -> dict[str, str]:
     events = gemini_client.fetch_todays_calendar_events() if gemini_client.is_google_oauth_configured() else []
     emails = gemini_client.fetch_unread_important_emails() if gemini_client.is_google_oauth_configured() else []
@@ -78,11 +98,15 @@ def build_context() -> dict[str, str]:
         "ig_note": _latest_ig_note(),
         "fb_note": _latest_fb_note(),
         "businesses": "、".join(settings.businesses),
+        "gemini_context": _load_gemini_context(),
     }
 
 
 PROMPT_TEMPLATE = """あなたは Ej の複数事業（{businesses}）を統括する AI マネージャーです。
-以下の情報から、仕様書の【朝の指示書】フォーマットに厳密に従って本日のタスク指示書を作成してください。
+以下の運用コンテキストと本日の情報から、今日のタスク指示書を作成してください。
+
+# 運用コンテキスト（docs/gemini_context.md）
+{gemini_context}
 
 # 今日の日付
 {today}
@@ -99,16 +123,30 @@ PROMPT_TEMPLATE = """あなたは Ej の複数事業（{businesses}）を統括�
 # 直近の Facebook 日次レポート要約
 {fb_note}
 
+# 判定基準（運用コンテキストの「Gemini がすべき判定」に基づく）
+1. Instagram 投稿が必要か？
+2. Facebook グループ対応が必要か？
+3. 売上レポート準備が必要か？
+4. その他の優先タスク
+
 # 出力フォーマット（この構造を厳守すること）
-【朝の指示書】{today}
+## 今日のタスク（{today}）
 
-【Ej の予定】
-(空き時間・予定を時系列で箇条書き)
+### 予定
+(空き時間・予定を時系列で箇条書き。取得できていなければその旨を書く)
 
-【推奨タスク】
-①②③...(優先度順、時間帯の目安つきで3〜5個)
+### 優先度1：[タスク名]
+- 所要時間：X分
+- 理由：なぜこれが優先なのか（上記の判定基準のどれに該当するか含む）
+- 方法：具体的な実行手順
 
-【注意】
+### 優先度2：[タスク名]
+（同様の形式）
+
+### 優先度3：[タスク名]
+（同様の形式。優先度4・5も該当する内容があれば追加）
+
+### 注意事項
 (広告のCPA異常、新規メンバー、要対応の問い合わせなど、見逃すとまずい事項)
 
 これで OK？ 修正が必要な箇所を言ってください。
@@ -122,24 +160,17 @@ def generate_morning_brief() -> str:
             "CLAUDE_API_KEY が未設定のため朝の指示書を生成できません。.env を設定してください。"
         )
     prompt = PROMPT_TEMPLATE.format(**ctx)
-    brief = claude_client.generate(prompt, max_tokens=1500)
+    brief = claude_client.generate(prompt, max_tokens=2500)
     return brief
 
 
 def _extract_tasks(brief_text: str) -> list[str]:
-    """生成テキストの【推奨タスク】セクションから ①②③... の行だけ抜き出す。"""
-    lines = brief_text.splitlines()
+    """生成テキストの「### 優先度N：[タスク名]」の行だけ抜き出す。"""
     tasks: list[str] = []
-    in_section = False
-    for line in lines:
+    for line in brief_text.splitlines():
         stripped = line.strip()
-        if stripped.startswith("【推奨タスク】"):
-            in_section = True
-            continue
-        if in_section and stripped.startswith("【"):
-            break
-        if in_section and stripped:
-            tasks.append(stripped)
+        if stripped.startswith("### 優先度"):
+            tasks.append(stripped.lstrip("#").strip())
     return tasks
 
 

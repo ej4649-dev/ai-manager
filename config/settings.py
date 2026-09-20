@@ -64,6 +64,10 @@ class Settings:
     gemini_api_key: str | None = field(default_factory=lambda: _get("GEMINI_API_KEY"))
     gemini_model: str = field(default_factory=lambda: _get("GEMINI_MODEL", "gemini-2.5-flash"))
 
+    # Grok (xAI) - クリエイティブ/シナリオ相談用アシスタント
+    grok_api_key: str | None = field(default_factory=lambda: _get("GROK_API_KEY"))
+    grok_model: str = field(default_factory=lambda: _get("GROK_MODEL", "grok-4"))
+
     # Google OAuth
     google_client_secret_path: Path = field(
         default_factory=lambda: ROOT_DIR / _get("GOOGLE_OAUTH_CLIENT_SECRET_PATH", "config/google_client_secret.json")
