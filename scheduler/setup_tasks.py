@@ -22,7 +22,7 @@ import os
 import subprocess
 from pathlib import Path
 
-PROJECT_PATH = Path(r"C:\Users\ej464\Downloads\ai-manager")
+PROJECT_PATH = Path(r"C:\AI-Manager")
 PYTHON_EXE = str(PROJECT_PATH / ".venv" / "Scripts" / "python.exe")
 MAIN_PY = str(PROJECT_PATH / "main.py")
 
