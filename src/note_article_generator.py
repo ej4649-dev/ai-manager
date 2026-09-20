@@ -89,7 +89,20 @@ def generate_drafts() -> str:
         raise RuntimeError("CLAUDE_API_KEY が未設定のため記事案を生成できません。")
 
     prompt = PROMPT_TEMPLATE.format(ideas_text=ideas_text, period_report=period_report)
-    drafts_md = claude_client.generate(prompt, max_tokens=3000)
+
+    # 無料/有料/プロセスの3記事分をまとめて生成するため出力が長くなりやすい。
+    # 実際に max_tokens=3000 で2記事目の途中で打ち切られた事例があったため、
+    # 6000 を初期値にし、それでも足りなければ1段階だけ増やして再試行する。
+    for max_tokens in (6000, 10000):
+        try:
+            drafts_md = claude_client.generate(prompt, max_tokens=max_tokens)
+            break
+        except claude_client.TruncatedResponseError:
+            logger.warning("記事下書き生成が max_tokens=%d で打ち切られたため再試行します", max_tokens)
+    else:
+        raise claude_client.TruncatedResponseError(
+            "max_tokens=10000 でも記事下書きの生成が完了しませんでした。プロンプトを分割してください。"
+        )
 
     for idea_id in idea_ids:
         db.mark_idea_used(idea_id)

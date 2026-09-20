@@ -32,10 +32,23 @@ def _get_client():
     return _client
 
 
+class TruncatedResponseError(RuntimeError):
+    """max_tokens に達して応答が途中で切れた場合に送出する。
+
+    実際に発生した事例: note_article_generator.py が max_tokens=3000 で
+    3記事分の生成を依頼したところ、2記事目の途中（「3つのブランドはそれ
+    ぞれ異なるコン」で文が切れる）で打ち切られ、そのまま docs/note_drafts/
+    に不完全な下書きが保存されてしまった。stop_reason を見ずに常に
+    resp.content をそのまま返していたため、呼び出し側も気づけなかった。
+    これを防ぐため、打ち切りを検知した時点で例外にして呼び出し元に
+    明示的に伝える（黙って不完全なテキストを返さない）。
+    """
+
+
 def generate(
     prompt: str,
     system: str | None = None,
-    max_tokens: int = 2000,
+    max_tokens: int = 4000,
 ) -> str:
     """単発プロンプト → テキスト応答。全機能の共通エントリーポイント。
 
@@ -55,7 +68,13 @@ def generate(
     if system:
         kwargs["system"] = system
     resp = client.messages.create(**kwargs)
-    return "".join(block.text for block in resp.content if getattr(block, "type", None) == "text")
+    text = "".join(block.text for block in resp.content if getattr(block, "type", None) == "text")
+    if resp.stop_reason == "max_tokens":
+        raise TruncatedResponseError(
+            f"応答が max_tokens={max_tokens} で打ち切られました（文の途中で終了）。"
+            f"max_tokens を増やして再実行してください。末尾: ...{text[-80:]!r}"
+        )
+    return text
 
 
 def is_configured() -> bool:
